@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package dht;
+option go_package = "./proto";
+
+// DHT Service defines the four standard RPCs
+service DHT {
+    // Ping checks if a node is online and active
+    rpc Ping(PingRequest) returns (PingResponse);
+
+    // Store instructs a node to save a kev pair in it's local storage
+    rpc Store(StoreRequest) returns (StoreResponse);
+
+    // FindNode requests a network addressess of the nodes closes to a target ID
+    rpc FindNode(FindNodeRequest) returns (FindNodeResponse);
+
+    // FindValue requests a value for a key. If the node does not have it, it returns the closest nodes to that key instead
+    rpc FindValue(FindValueRequest) returns (FindValueResponse);
+} 
+
+// Node represents a participant in the DHT network
+message Node {
+    bytes id = 1; // 160 bit SHA-1 Hash 
+    string ip_address = 2; // network address to connect via grpc
+}
+
+// PingRequest contains the sender's node info for discovery
+message PingRequest {
+    Node sender = 1 ; // node initiating the ping
+}
+
+// PingResponse contains the reciver's node information
+message PingResponse {
+    Node sender = 1; // node responding to the ping
+}
+
+// StoreRequest contains the data to be stored and the sender's info
+message StoreRequest {
+    Node sender = 1; // the node initiating the request
+    string key = 2;
+    bytes value = 3;
+}
+
+// StoreResponse confirms whether the storage operation was successfull
+message StoreResponse {
+    bool success = 1; 
+}
+
+// FindNodeRequest asks for nodes mathematically close to a specific target ID
+message FindNodeRequest {
+    Node sender = 1; // node initiating the response
+    bytes target_id = 2; // 160 bit target ID being searched in the network
+}
+
+// FindNodeResponse returns a list of the closes known nodes.
+message FindNodeResponse {
+    repeated Node nodes = 1; // a list of node addresses and Id's closest to the requested target ID
+}
+
+// FindValueRequest asks for the byte value associated with a specific key
+message FindValueRequest {
+    Node sender = 1; // the node initiating the request
+    string key = 2; // the key for whose value is requested in the network
+}
+
+// FindValueResponse returns the value if found, or the closest nodes if not
+message FindValueResponse {
+    bytes value = 1; // the stored data payload for the requested key
+    repeated Node nodes = 2; // the closes known nodes for the request key
+    bool found =3; // to verify which value, if true then value found and value field must be read otherwise nodes 
+}
+
