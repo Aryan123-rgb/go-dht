@@ -48,7 +48,7 @@ message StoreResponse {
 
 // FindNodeRequest asks for nodes mathematically close to a specific target ID
 message FindNodeRequest {
-    Node sender = 1; // node initiating the response
+    Node sender = 1; // node initiating the request
     bytes target_id = 2; // 160 bit target ID being searched in the network
 }
 

@@ -11,23 +11,29 @@ import (
 	"github.com/Aryan123-rgb/go-dht/proto"
 )
 
-const IDLength = 20
-const MaxBuckets = IDLength * 8 // 160 buckets for 160-bit IDs
+const IDLength = 20             // 160 bits - 20 bytes
+const MaxBuckets = IDLength * 8 // 160 buckets for 160-bit ids
 
-// NodeId represents the 160-bit DHT Id
+// NodeId represents SHA-1 bit Node Id
 type NodeId [IDLength]byte
 
-// GenerateId creates a SHA-1 hash for node addresses or data keys
+// GenerateID creates a SHA-1 hash for node addresses or data keys
 func GenerateID(data string) NodeId {
 	return sha1.Sum([]byte(data))
 }
 
-// BucketIndex calculates the highest differing bit between two IDs (0-159), this determines which bucket a node belongs in
+// String returns a hex representation for clean logging
+func (id NodeId) String() string {
+	return hex.EncodeToString(id[:])
+}
+
+// BucketIndex calculates the highest differing bit between two IDs (0-159).
+// This determines which bucket a node belongs in.
 func BucketIndex(id1, id2 NodeId) int {
 	for i := range IDLength {
 		xor := id1[i] ^ id2[i]
 		if xor != 0 {
-			// find the highest set bit in this differing byte
+			// Find the highest set bit in this differing byte
 			leadingZeros := bits.LeadingZeros8(xor)
 			return (IDLength-1-i)*8 + (8 - 1 - leadingZeros)
 		}
@@ -49,7 +55,7 @@ func NewRoutingTable(selfId NodeId) *RoutingTable {
 	}
 }
 
-// AddNode processes any encountered node. If it is new, it adds it to the correct bucket based on XOR distance and logs the discovery
+// AddNode processes any encountered node. If it is new, it adds it to the correct bucket based on XOR distance and logs the discovery.
 func (rt *RoutingTable) AddNode(node *proto.Node) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -57,24 +63,38 @@ func (rt *RoutingTable) AddNode(node *proto.Node) {
 	var id NodeId
 	copy(id[:], node.Id)
 
-	// Ignore ourselves
 	if id == rt.SelfId {
 		return
 	}
+	bucketIndex := BucketIndex(rt.SelfId, id)
 
-	bucketIdx := BucketIndex(rt.SelfId, id)
-
-	// Check if we already know this node
-	for _, n := range rt.Buckets[bucketIdx] {
-		if bytes.Equal(n.Id, node.Id) {
+	// check if we already know this node, avoid duplication
+	for _, n := range rt.Buckets[bucketIndex] {
+		if bytes.Equal(node.Id, n.Id) {
 			return
 		}
 	}
 
 	// Trigger the discovery log for the terminal
 	log.Printf("[DISCOVERY] Node %s discovered new node %s at %s (Bucket: %d)",
-		rt.SelfId, hex.EncodeToString(node.Id)[:8], node.IpAddress, bucketIdx)
+		rt.SelfId.String()[:8], hex.EncodeToString(node.Id)[:8], node.IpAddress, bucketIndex)
 
-	// Append to the bucket (minimal implementation: no capacity limits or ping checks)
-	rt.Buckets[bucketIdx] = append(rt.Buckets[bucketIdx], node)
+	// Append the node to the bucket
+	// TODO: Add capacity limits and ping check before adding the node
+	rt.Buckets[bucketIndex] = append(rt.Buckets[bucketIndex], node)
+}
+
+// GetClosestNodes returns all known nodes from the table
+
+// TODO: Return only alpha nodes with the shortest distance
+// According to paper alpha = 3, return the first 3 nodes which are active
+func (rt *RoutingTable) GetClosestNode() []*proto.Node {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+
+	var nodes []*proto.Node
+	for _, n := range rt.Buckets {
+		nodes = append(nodes, n...)
+	}
+	return nodes
 }
