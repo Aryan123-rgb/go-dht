@@ -11,6 +11,22 @@ import (
 	"github.com/Aryan123-rgb/go-dht/proto"
 )
 
+/*
+This file defines the structure for the routing table node has.
+RoutingTable will currently have 160 sized array where at each index
+the nodes with differing bits will be stored
+
+The file defines the logic of calculaing distance using xor and finding the correct bucket index based on differing bits
+Also defines the logic for adding new node to the routing table and 
+getting closest nodes in the routing table
+
+TODO: 
+1. Introduce the concurreny parameter alpha = 3 and only retrieve the top alpha nodes when fetching closest nodes
+
+2. Introduce k-buckets storing and for every bucketIndex only store the top-k node and omit out the rest of the nodes (k = 20)
+
+*/
+
 const IDLength = 20             // 160 bits - 20 bytes
 const MaxBuckets = IDLength * 8 // 160 buckets for 160-bit ids
 
@@ -55,7 +71,8 @@ func NewRoutingTable(selfId NodeId) *RoutingTable {
 	}
 }
 
-// AddNode processes any encountered node. If it is new, it adds it to the correct bucket based on XOR distance and logs the discovery.
+// AddNode processes any encountered node. If it is new, it adds it to 
+// the correct bucket based on XOR distance and logs the discovery.
 func (rt *RoutingTable) AddNode(node *proto.Node) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -63,6 +80,7 @@ func (rt *RoutingTable) AddNode(node *proto.Node) {
 	var id NodeId
 	copy(id[:], node.Id)
 
+	// do not add yourself
 	if id == rt.SelfId {
 		return
 	}
